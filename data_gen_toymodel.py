@@ -64,14 +64,14 @@ def ToyModel(mean_E_nu, std_E_nu, kappa, N_events):
         N_events: Number of events generated
 
     Returns: Array of simulated data
-    1st row : E_nu
-    2nd row : Q
-    3rd row : proton energy
-    4th row : proton 3-momentum magnitude
-    5th row : charged lepton energy
-    6th row : charged lepton 3-momentum magnitude
+    1st col : E_nu
+    2nd col : Q
+    3rd col : proton energy
+    4th col : proton 3-momentum magnitude
+    5th col : charged lepton energy
+    6th col : charged lepton 3-momentum magnitude
 
-    each col corresponds to a single event
+    each row corresponds to a single event
     """
 
     # generate a random neutrino energy according to a normal distribution
@@ -91,13 +91,12 @@ def ToyModel(mean_E_nu, std_E_nu, kappa, N_events):
 
     # constructing the data array shape = (6, 10)
 
-    data_arr = np.vstack((E_nu, Q, E_p, p_p, E_l, p_l))
+    data_arr = np.column_stack((E_nu, Q, E_p, p_p, E_l, p_l))
 
     return data_arr
 
 
 d_arr = ToyModel(E_mu_peak, E_mu_width, 3, 10)
-
 
 
 
@@ -135,7 +134,12 @@ def DetectorAcceptance(data_array):
     # the detection efficiency is a function of the daughter particle 3-momenta magnitudes
     # extracting the 3-momenta form the data array see encoding above
 
-    E_nu, Q, E_p, p_p, E_l, p_l = data_array
+    p_p = data_array[:, 2]
+    p_l = data_array[:, 5]
+
+
+
+
 
     p_th = 2.5  # [GeV] i. e. 250 MeV
     eff_max = 1.0
@@ -146,23 +150,22 @@ def DetectorAcceptance(data_array):
 
     proton_det_prob = Efficiency_func(p_p, eff_max, p_th, nu, xi, delt, phi)
     proton_reject_status = [rng.choice(a=[True, False], p=[1-p, p]) for p in proton_det_prob]
-    # TODO: replace list comprehension here with something faster
+    # # TODO: replace list comprehension here with something faster
     lepton_det_prob = Efficiency_func(p_l, eff_max, p_th, nu, xi, delt, phi)
     lepton_reject_status = [rng.choice(a=[True, False], p=[1 - p, p]) for p in lepton_det_prob]
 
     detected_data = data_array
     # selecting for the proton detections
-    detected_data[2] = np.where(proton_reject_status, np.nan, detected_data[2])
-    detected_data[3] = np.where(proton_reject_status, np.nan, detected_data[3])
+    detected_data[:, 2] = np.where(proton_reject_status, np.nan, detected_data[:, 2])
+    detected_data[:, 3] = np.where(proton_reject_status, np.nan, detected_data[:, 3])
 
     # selecting for the charged lepton detections
-    detected_data[4] = np.where(lepton_reject_status, np.nan, detected_data[4])
-    detected_data[5] = np.where(lepton_reject_status, np.nan, detected_data[5])
+    detected_data[:, 4] = np.where(lepton_reject_status, np.nan, detected_data[:, 4])
+    detected_data[:, 5] = np.where(lepton_reject_status, np.nan, detected_data[:, 5])
 
 
-    print(proton_reject_status)
-    print(lepton_reject_status)
-    print(detected_data)
+
+
 
 
 DetectorAcceptance(d_arr)
