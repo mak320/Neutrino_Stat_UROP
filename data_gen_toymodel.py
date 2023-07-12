@@ -15,13 +15,19 @@ def safe_sqrt(x):
     with np.errstate(invalid='ignore'):  # Ignore invalid value warnings
         return np.sqrt(np.maximum(x, 0))
 
+
 def safe_divide(numerator, denominator):
     with np.errstate(divide='ignore', invalid='ignore'):
         result = np.divide(numerator, denominator)
     return result
 
+
 def get_3Mom_magn(M, E):
     return safe_sqrt(E ** 2 - M ** 2 * c ** 4) / c
+
+
+def CreationThreshold(M_prod, m_beam, m_target):
+    return (M_prod ** 2 - m_beam ** 2 - m_target ** 2) * c ** 2 / m_target
 
 
 def ToyModel(mean_E_nu, std_E_nu, kappa, N_events):
@@ -46,41 +52,53 @@ def ToyModel(mean_E_nu, std_E_nu, kappa, N_events):
 
     # generate a random neutrino energy according to a normal distribution
     E_nu = rng.normal(loc=mean_E_nu, scale=std_E_nu, size=N_events)
+    # imposing the creation threshold
+    threshold = CreationThreshold(M_prod=M_p + M_l, m_beam=M_nu, m_target=M_n)
+
+    E_nu = E_nu[E_nu >= threshold]
 
     # the generated neutrino energy determines the momentum transfer distribution
-    Q_dropoff = kappa * (E_nu / c)
-    Q = rng.exponential(scale=Q_dropoff)
+    Q_dropoff = np.abs(kappa * (E_nu / c) ** 2)
+    Q = -rng.exponential(scale=Q_dropoff)
 
     # Using the kinematics constraints the proton and lepton energies and 3-momenta magnitudes are determined
-    E_p = (-Q ** 2 + c ** 2 * (M_n ** 2 + M_p ** 2)) / (2*M_n) # proton energy form kinematic constraints
-    E_p = Q ** 2 / (2 * M_n) + M_n * c ** 2
-    E_l = E_nu + M_n * c ** 2 - E_p   # charged lepton energy form energy conservation
+    E_p = (-Q ** 2 + c ** 2 * (M_n ** 2 + M_p ** 2)) / (2 * M_n)  # proton energy form kinematic constraints
+    E_l = E_nu + M_n * c ** 2 - E_p  # charged lepton energy form energy conservation
+
+    conservation_constraints = np.logical_and(np.logical_and(E_p > 0, E_p < E_nu + M_n * c ** 2),
+                                              np.logical_and(E_l > 0, E_l < E_nu + M_n * c ** 2))
+    E_nu = E_nu[conservation_constraints]
+    Q = Q[conservation_constraints]
+    E_p = E_p[conservation_constraints]
+    E_l = E_l[conservation_constraints]
 
     # obtaining the 3 momenta magnitudes from the energies
     p_p = get_3Mom_magn(M_p, E_p)
     p_l = get_3Mom_magn(M_l, E_l)
 
+
     # Angular reconstruction
     # right now the code is sufficiently fast for its intended purpose reserving the angular reconstruction calculation
     # is possible but not worth the effort at this point
-    def lepton_angle(E_l, E_nu, p_l):
-        numerator = M_p ** 2 - M_n ** 2 - M_l ** 2 + 2 * E_l * M_n - 2 * M_n * E_nu + 2 * E_l * E_nu
-        denominator = 2 * p_l * E_nu
-        cos_theta = safe_divide(numerator, denominator)
-        return cos_theta
+    # def lepton_angle(E_l, E_nu, p_l):
+    #     numerator = M_p ** 2 - M_n ** 2 - M_l ** 2 + 2 * E_l * M_n - 2 * M_n * E_nu + 2 * E_l * E_nu
+    #     denominator = 2 * p_l * E_nu
+    #     cos_theta = safe_divide(numerator, denominator)
+    #     return cos_theta
+    #
+    # def proton_angle(E_p, E_nu, p_p):
+    #     numerator = M_l ** 2 - M_n ** 2 - M_p ** 2 + 2 * E_p * M_n - 2 * M_n * E_nu + 2 * E_p * E_nu
+    #     denominator = 2 * p_p * E_nu
+    #     cos_theta = numerator/denominator
+    #     return cos_theta
+    #
+    # cos_theta_p = proton_angle(E_p, E_nu, p_p)
+    # cos_theta_l = lepton_angle(E_l, E_nu, p_p)
+    #
+    # # constructing the data array shape = (6, 10)
+    # data_arr = np.column_stack((E_nu, Q, E_p, p_p, E_l, p_l, cos_theta_p, cos_theta_l))
 
-    def proton_angle(E_p, E_nu, p_p):
-        numerator = M_l ** 2 - M_n ** 2 - M_p ** 2 + 2 * E_p * M_n - 2 * M_n * E_nu + 2 * E_p * E_nu
-        denominator = 2 * p_p * E_nu
-        cos_theta = safe_divide(numerator, denominator)
-        return cos_theta
-
-    cos_theta_p = proton_angle(E_p, E_nu, p_p)
-    cos_theta_l = lepton_angle(E_l, E_nu, p_p)
-
-    # constructing the data array shape = (6, 10)
-
-    data_arr = np.column_stack((E_nu, Q, E_p, p_p, E_l, p_l, cos_theta_p, cos_theta_l))
+    data_arr = np.column_stack((E_nu, Q, E_p, p_p, E_l, p_l))
     return data_arr
 
 
@@ -89,7 +107,7 @@ def Efficiency_func(p, eff_max, p_th, nu, xi, delt, phi):
     See modelling the detector section
     Args:
         eff_max:
-        p_th: threshold momnetum value
+        p_th: threshold momentum value
         nu: fudge factor
         xi: detection probability in the middle
         delt: 'edge' displacement
@@ -121,18 +139,27 @@ def DetectorAcceptance(data_array):
     p_p = data_array[:, 2]
     p_l = data_array[:, 5]
 
+    p_th_p = 2.0
+    eff_max_p = 1.0
+    nu_p = 1.0
+    xi_p = 0.5
+    delt_p = 0.1 * p_th_p
+    phi_p = 0.2
 
-    p_th = 2.5  # [GeV] i. e. 250 MeV
-    eff_max = 1.0
-    nu = 1.0
-    xi = 0.1
-    delt = 0.1 * p_th
-    phi = 0.2
+    p_th_l = 0.25  # [GeV] i. e. 250 MeV
+    eff_max_l = 1.0
+    nu_l = 1.0
+    xi_l = 0.7
+    delt_l = 0.1 * p_th_l
+    phi_l = 0.3
 
-    proton_det_prob = Efficiency_func(p_p, eff_max, p_th, nu, xi, delt, phi)
-    proton_reject_status = [rng.choice(a=[True, False], p=[1-p, p]) for p in proton_det_prob]
+
+
+
+    proton_det_prob = Efficiency_func(p_p, eff_max_p, p_th_p, nu_p, xi_p, delt_p, phi_p)
+    proton_reject_status = [rng.choice(a=[True, False], p=[1 - p, p]) for p in proton_det_prob]
     # # TODO: replace list comprehension here with something faster
-    lepton_det_prob = Efficiency_func(p_l, eff_max, p_th, nu, xi, delt, phi)
+    lepton_det_prob = Efficiency_func(p_l, eff_max_l, p_th_l, nu_l, xi_l, delt_l, phi_l)
     lepton_reject_status = [rng.choice(a=[True, False], p=[1 - p, p]) for p in lepton_det_prob]
 
     detected_data = data_array
@@ -148,92 +175,148 @@ def DetectorAcceptance(data_array):
 
 
 if __name__ == '__main__':
-
     """Physical parameters"""
     c = 1.0
     E_mu_peak = 0.6  # [GeV]
     E_mu_width = 0.1  # [GeV]
-    kappa = 3.0
+    kappa = 1
     N_events = 5000
+
+    num_bins = 15
 
     M_p = 0.938  # [GeV]
     M_n = 0.939  # [GeV]
     M_l = 0.106  # [GeV]  Mass of a muon
+    M_nu = 0.12e-9 # [GeV] effective mass of the neutrino
 
     """Plotting parameters"""
-    all_data_c = "#21A124"
-    full_reconst_c = "#D0231F"
-    proton_reconst_c = "#FF7E00"
-    lepton_reconst_c = "#1975B6"
+    all_data_c = "green"
+    full_reconst_c = "red"
+    proton_reconst_c = "blue"
+    lepton_reconst_c = "orange"
 
     axis_font_size = 13
 
-    data = ToyModel(E_mu_peak, E_mu_width, kappa, N_events)
 
+    """Identficaton of the number and kind of particle tracks"""
+    data = ToyModel(E_mu_peak, E_mu_width, kappa, N_events)
     detected_data = DetectorAcceptance(data)
 
-    fully_reconstructed_condition = np.logical_not(np.isnan(detected_data).any(axis=1))
-    fully_reconstructed_data = detected_data[fully_reconstructed_condition]
+
+    """Two tracks"""
+    fully_reconst_cond = np.logical_not(np.isnan(detected_data).any(axis=1))
+    fully_reconstructed_data = detected_data[fully_reconst_cond]
+
+
+    """Only pronton track"""
+    proton_reconst_cond = np.logical_and(np.logical_not(np.isnan(detected_data[:, 2])),
+                                         np.isnan(detected_data[:, 4]))
+    proton_reconstructed_data = data[proton_reconst_cond]
+
+    """Only charged lepton track"""
+
+    lepton_reconst_cond = np.logical_and((np.isnan(detected_data[:, 2])),
+                                         np.logical_not(np.isnan(detected_data[:, 4])))
+    lepton_reconstructed_data = data[lepton_reconst_cond]
 
     ########################################################################
 
-    fig1 = plt.figure(figsize=(12,8))
+    # Beam energy and Q
+    fig1 = plt.figure(figsize=(12, 8))
     ax11 = fig1.add_subplot(121)
     ax12 = fig1.add_subplot(122)
 
-    ax11.hist(data[:, 0], color=all_data_c)
-    ax11.hist(fully_reconstructed_data[:, 0], color=full_reconst_c)
+    ax11.hist(data[:, 0], bins=num_bins, color=all_data_c, histtype="step",
+              label="all generated data")
+    ax11.hist(fully_reconstructed_data[:, 0], bins=num_bins, color=full_reconst_c, histtype="step",
+              label="full reconstructed")
+    ax11.hist(proton_reconstructed_data[:, 0], bins=num_bins, color=proton_reconst_c,  histtype="step",
+              label="Just proton reconst.")
+    ax11.hist(lepton_reconstructed_data[:, 0], bins=num_bins, color=lepton_reconst_c,  histtype="step",
+              label="Just lepton reconst.")
+
     ax11.grid()
     ax11.set_xlabel(r"$E_{\nu}$", fontsize=axis_font_size)
     ax11.set_ylabel("count", fontsize=axis_font_size)
+    ax11.legend()
 
-    ax12.hist(data[:, 1] ** 2, color=all_data_c)
-    ax12.hist(fully_reconstructed_data[:, 1] ** 2, color=full_reconst_c)
+    ax12.hist(data[:, 1], bins=num_bins, color=all_data_c, histtype="step",
+              label="all generated data")
+    ax12.hist(fully_reconstructed_data[:, 1], bins=num_bins, color=full_reconst_c, histtype="step",
+              label="full reconstructed")
+    ax12.hist(proton_reconstructed_data[:, 1],bins=num_bins, color=proton_reconst_c, histtype="step",
+              label="Just proton reconst.")
+    ax12.hist(lepton_reconstructed_data[:, 1], bins=num_bins, color=lepton_reconst_c, histtype="step",
+              label="Just lepton reconst.")
+
     ax12.grid()
-    ax12.set_xlabel(r"$Q^2$", fontsize=axis_font_size)
+    ax12.set_xlabel(r"$Q$", fontsize=axis_font_size)
     ax12.set_ylabel("count", fontsize=axis_font_size)
+    ax12.legend()
+
 
     ########################################################################
 
+    # proton energy momentum
     fig2 = plt.figure(figsize=(12, 8))
     ax21 = fig2.add_subplot(121)
     ax22 = fig2.add_subplot(122)
 
-    ax21.hist(data[:, 2], color=all_data_c)
-    ax21.hist(fully_reconstructed_data[:, 2], color=full_reconst_c)
-    ax21.grid()
-    ax21.set_xlabel(r"$E_{p}$", fontsize=axis_font_size)
-    ax21.set_ylabel("count", fontsize=axis_font_size)
+    ax21.hist(data[:, 2], bins=num_bins, color=all_data_c, histtype="step",
+              label="all generated data")
+    ax21.hist(fully_reconstructed_data[:, 2], bins=num_bins, color=full_reconst_c, histtype="step",
+              label="full reconstructed")
+    ax21.hist(proton_reconstructed_data[:, 2], bins=num_bins,  color=proton_reconst_c, histtype="step",
+              label="Just proton reconst.")
 
-    ax22.hist(data[:, 3], color=all_data_c)
-    ax22.hist(fully_reconstructed_data[:, 3], color=full_reconst_c)
+    ax21.grid()
+    ax21.set_xlabel(r"$E_{p}}$", fontsize=axis_font_size)
+    ax21.set_ylabel("count", fontsize=axis_font_size)
+    ax21.legend()
+
+    ax22.hist(data[:, 3], color=all_data_c, histtype="step",
+              label="all generated data")
+    ax22.hist(fully_reconstructed_data[:, 3],  color=full_reconst_c, histtype="step",
+              label="full reconstructed")
+    ax22.hist(proton_reconstructed_data[:, 3], color=proton_reconst_c, histtype="step",
+              label="Just proton reconst.")
+
     ax22.grid()
     ax22.set_xlabel(r"$|\vec{p}_p|$", fontsize=axis_font_size)
     ax22.set_ylabel("count", fontsize=axis_font_size)
+    ax22.legend()
 
     ########################################################################
 
-    fig3 = plt.figure(figsize=(10, 4))
+    # charged lepton energy momentum
+    fig3 = plt.figure(figsize=(12, 8))
     ax31 = fig3.add_subplot(121)
     ax32 = fig3.add_subplot(122)
 
-    ax31.hist(data[:, 4], color=all_data_c)
-    ax31.hist(fully_reconstructed_data[:, 4], color=full_reconst_c)
-    ax31.grid()
-    ax31.set_xlabel(r"$E_{l}$", fontsize=axis_font_size)
-    ax31.set_ylabel("count", fontsize=axis_font_size)
+    ax31.hist(data[:, 4], bins=num_bins, color=all_data_c, histtype="step",
+              label="all generated data")
+    ax31.hist(fully_reconstructed_data[:, 4], bins=num_bins, color=full_reconst_c, histtype="step",
+              label="full reconstructed")
+    ax31.hist(lepton_reconstructed_data[:, 4], bins=num_bins, color=lepton_reconst_c, histtype="step",
+              label="Just proton reconst.")
 
-    ax32.hist(data[:, 5], color=all_data_c)
-    ax32.hist(fully_reconstructed_data[:, 5], color=full_reconst_c)
+    ax31.grid()
+    ax31.set_xlabel(r"$E_l}$", fontsize=axis_font_size)
+    ax31.set_ylabel("count", fontsize=axis_font_size)
+    ax31.legend()
+
+    ax32.hist(data[:, 5], bins=num_bins, color=all_data_c, histtype="step",
+              label="all generated data")
+    ax32.hist(fully_reconstructed_data[:, 5], bins=num_bins, color=full_reconst_c, histtype="step",
+              label="full reconstructed")
+    ax32.hist(lepton_reconstructed_data[:, 5], bins=num_bins, color=lepton_reconst_c, histtype="step",
+              label="Just proton reconst.")
+
     ax32.grid()
     ax32.set_xlabel(r"$|\vec{p}_l|$", fontsize=axis_font_size)
     ax32.set_ylabel("count", fontsize=axis_font_size)
+    ax32.legend()
 
     ########################################################################
 
     plt.show()
-
-
-
-
-
