@@ -59,10 +59,10 @@ def ToyModel(mean_E_nu, std_E_nu, kappa, N_events):
 
     # the generated neutrino energy determines the momentum transfer distribution
     Q_dropoff = np.abs(kappa * (E_nu / c) ** 2)
-    Q = -rng.exponential(scale=Q_dropoff)
+    Q = rng.exponential(scale=Q_dropoff)
 
     # Using the kinematics constraints the proton and lepton energies and 3-momenta magnitudes are determined
-    E_p = (-Q ** 2 + c ** 2 * (M_n ** 2 + M_p ** 2)) / (2 * M_n)  # proton energy form kinematic constraints
+    E_p = (Q ** 2 + c ** 2 * (M_n ** 2 + M_p ** 2)) / (2 * M_n)  # proton energy form kinematic constraints
     E_l = E_nu + M_n * c ** 2 - E_p  # charged lepton energy form energy conservation
 
     conservation_constraints = np.logical_and(np.logical_and(E_p > 0, E_p < E_nu + M_n * c ** 2),
@@ -117,7 +117,10 @@ def Efficiency_func(p, eff_max, p_th, nu, xi, delt, phi):
     """
     sigma = (1 / xi) ** nu - 1
 
+    print(sigma)
+
     alpha = 1 / (delt * nu * p_th) * np.log(((1 / phi) ** nu - 1) / sigma)
+    print(alpha)
 
     eff = eff_max / (1 + sigma * np.exp(-alpha * nu * (p - p_th)))  # efficiency = P("click")
 
@@ -139,22 +142,19 @@ def DetectorAcceptance(data_array):
     p_p = data_array[:, 2]
     p_l = data_array[:, 5]
 
-    p_th_p = 2.0
-    eff_max_p = 1.0
+    p_th_p = 300  # [MeV/c]
+    eff_max_p = 1.0  # [probability]
     nu_p = 1.0
-    xi_p = 0.5
-    delt_p = 0.1 * p_th_p
-    phi_p = 0.2
+    xi_p = 0.5  # [probability]
+    delt_p = 0.01 * p_th_p  # [MeV/c]
+    phi_p = 0.2  # [probability]
 
-    p_th_l = 0.25  # [GeV] i. e. 250 MeV
-    eff_max_l = 1.0
+    p_th_l = 100  # [MeV/c]
+    eff_max_l = 1.0  # [probability]
     nu_l = 1.0
-    xi_l = 0.7
-    delt_l = 0.1 * p_th_l
-    phi_l = 0.3
-
-
-
+    xi_l = 0.7  # [probability]
+    delt_l = 0.01 * p_th_l  # [MeV/c]
+    phi_l = 0.3  # [probability]
 
     proton_det_prob = Efficiency_func(p_p, eff_max_p, p_th_p, nu_p, xi_p, delt_p, phi_p)
     proton_reject_status = [rng.choice(a=[True, False], p=[1 - p, p]) for p in proton_det_prob]
@@ -177,17 +177,17 @@ def DetectorAcceptance(data_array):
 if __name__ == '__main__':
     """Physical parameters"""
     c = 1.0
-    E_mu_peak = 0.6  # [GeV]
-    E_mu_width = 0.1  # [GeV]
+    E_mu_peak = 600  # [MeV]
+    E_mu_width = 100  # [MeV]
     kappa = 1
-    N_events = 5000
+    N_events = int(1e7)
 
     num_bins = 15
 
-    M_p = 0.938  # [GeV]
-    M_n = 0.939  # [GeV]
-    M_l = 0.106  # [GeV]  Mass of a muon
-    M_nu = 0.12e-9 # [GeV] effective mass of the neutrino
+    M_p = 938  # [MeV]
+    M_n = 939  # [MeV]
+    M_l = 105.7  # [MeV]  Mass of a muon
+    M_nu = 1.2e-7  # [MeV] effective mass of the neutrino (can set zero)
 
     """Plotting parameters"""
     all_data_c = "green"
@@ -197,12 +197,13 @@ if __name__ == '__main__':
 
     axis_font_size = 13
 
-
-    """Identficaton of the number and kind of particle tracks"""
+    """Identification of the number and kind of particle tracks"""
     data = ToyModel(E_mu_peak, E_mu_width, kappa, N_events)
+
+    print(np.any(np.isnan(data)))
     detected_data = DetectorAcceptance(data)
 
-
+    print(detected_data.shape)
     """Two tracks"""
     fully_reconst_cond = np.logical_not(np.isnan(detected_data).any(axis=1))
     fully_reconstructed_data = detected_data[fully_reconst_cond]
@@ -240,27 +241,28 @@ if __name__ == '__main__':
     ax11.set_ylabel("count", fontsize=axis_font_size)
     ax11.legend()
 
-    ax12.hist(data[:, 1], bins=num_bins, color=all_data_c, histtype="step",
+    ax12.hist(data[:, 1]**2, bins=num_bins, color=all_data_c, histtype="step",
               label="all generated data")
-    ax12.hist(fully_reconstructed_data[:, 1], bins=num_bins, color=full_reconst_c, histtype="step",
+    ax12.hist(fully_reconstructed_data[:, 1]**2, bins=num_bins, color=full_reconst_c, histtype="step",
               label="full reconstructed")
-    ax12.hist(proton_reconstructed_data[:, 1],bins=num_bins, color=proton_reconst_c, histtype="step",
+    ax12.hist(proton_reconstructed_data[:, 1]**2 ,bins=num_bins, color=proton_reconst_c, histtype="step",
               label="Just proton reconst.")
-    ax12.hist(lepton_reconstructed_data[:, 1], bins=num_bins, color=lepton_reconst_c, histtype="step",
+    ax12.hist(lepton_reconstructed_data[:, 1]**2, bins=num_bins, color=lepton_reconst_c, histtype="step",
               label="Just lepton reconst.")
 
     ax12.grid()
-    ax12.set_xlabel(r"$Q$", fontsize=axis_font_size)
+    ax12.set_xlabel(r"$Q^2$", fontsize=axis_font_size)
     ax12.set_ylabel("count", fontsize=axis_font_size)
     ax12.legend()
-
 
     ########################################################################
 
     # proton energy momentum
-    fig2 = plt.figure(figsize=(12, 8))
-    ax21 = fig2.add_subplot(121)
-    ax22 = fig2.add_subplot(122)
+    fig2 = plt.figure(figsize=(12, 12))
+    ax21 = fig2.add_subplot(221)
+    ax22 = fig2.add_subplot(223)
+    ax31 = fig2.add_subplot(222)
+    ax32 = fig2.add_subplot(224)
 
     ax21.hist(data[:, 2], bins=num_bins, color=all_data_c, histtype="step",
               label="all generated data")
@@ -269,6 +271,7 @@ if __name__ == '__main__':
     ax21.hist(proton_reconstructed_data[:, 2], bins=num_bins,  color=proton_reconst_c, histtype="step",
               label="Just proton reconst.")
 
+    ax21.set_title("Proton")
     ax21.grid()
     ax21.set_xlabel(r"$E_{p}}$", fontsize=axis_font_size)
     ax21.set_ylabel("count", fontsize=axis_font_size)
@@ -289,10 +292,8 @@ if __name__ == '__main__':
     ########################################################################
 
     # charged lepton energy momentum
-    fig3 = plt.figure(figsize=(12, 8))
-    ax31 = fig3.add_subplot(121)
-    ax32 = fig3.add_subplot(122)
 
+    ax31.set_title("Charged Lepton")
     ax31.hist(data[:, 4], bins=num_bins, color=all_data_c, histtype="step",
               label="all generated data")
     ax31.hist(fully_reconstructed_data[:, 4], bins=num_bins, color=full_reconst_c, histtype="step",
@@ -302,7 +303,6 @@ if __name__ == '__main__':
 
     ax31.grid()
     ax31.set_xlabel(r"$E_l}$", fontsize=axis_font_size)
-    ax31.set_ylabel("count", fontsize=axis_font_size)
     ax31.legend()
 
     ax32.hist(data[:, 5], bins=num_bins, color=all_data_c, histtype="step",
@@ -314,9 +314,42 @@ if __name__ == '__main__':
 
     ax32.grid()
     ax32.set_xlabel(r"$|\vec{p}_l|$", fontsize=axis_font_size)
-    ax32.set_ylabel("count", fontsize=axis_font_size)
     ax32.legend()
 
-    ########################################################################
 
+    # empicical efficiency
+    fig4 = plt.figure(figsize=(12,9))
+    ax41 = fig4.add_subplot(121)
+    ax42 = fig4.add_subplot(122)
+    p_p = data[:, 2][np.logical_not(np.isnan(data[:, 2]))]
+    p_l = data[:, 5][np.logical_not(np.isnan(data[:, 5]))]
+
+    x_p = np.linspace(0, 1.5 * np.max(p_p), 1000)
+    x_l = np.linspace(0, 1.5 * np.max(p_l), 1000)
+
+    p_th_p = 300  # [MeV/c]
+    eff_max_p = 1.0  # [probability]
+    nu_p = 1.0
+    xi_p = 0.5  # [probability]
+    delt_p = 0.1 * p_th_p  # [MeV/c]
+    phi_p = 0.2  # [probability]
+
+    p_th_l = 100  # [MeV/c]
+    eff_max_l = 1.0  # [probability]
+    nu_l = 1.0
+    xi_l = 0.7  # [probability]
+    delt_l = 0.1 * p_th_l  # [MeV/c]
+    phi_l = 0.3  # [probability]
+
+    ax41.plot(x_p, Efficiency_func(x_p, eff_max_p, p_th_p,nu_p, xi_p, delt_p, phi_p))
+    ax42.plot(x_l, Efficiency_func(x_l, eff_max_l, p_th_l, nu_l, xi_l, delt_p, phi_l))
+
+
+
+
+
+
+
+
+    plt.tight_layout()
     plt.show()
