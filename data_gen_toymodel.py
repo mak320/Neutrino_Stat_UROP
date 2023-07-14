@@ -1,8 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-import inv_transf_rng
-
 rng = np.random.default_rng(seed=1234)
 np.set_printoptions(precision=3, linewidth=150)
 
@@ -32,7 +30,6 @@ def CreationThreshold(M_prod, m_beam, m_target):
 
 def ToyModel(mean_E_nu, std_E_nu, kappa, N_events):
     """
-
     Args: Model parameters
         mean_E_nu: Mean neutrino energy
         std_E_nu: standard deviation in the neutrino energy
@@ -76,29 +73,26 @@ def ToyModel(mean_E_nu, std_E_nu, kappa, N_events):
     p_p = get_3Mom_magn(M_p, E_p)
     p_l = get_3Mom_magn(M_l, E_l)
 
-
     # Angular reconstruction
     # right now the code is sufficiently fast for its intended purpose reserving the angular reconstruction calculation
     # is possible but not worth the effort at this point
-    # def lepton_angle(E_l, E_nu, p_l):
-    #     numerator = M_p ** 2 - M_n ** 2 - M_l ** 2 + 2 * E_l * M_n - 2 * M_n * E_nu + 2 * E_l * E_nu
-    #     denominator = 2 * p_l * E_nu
-    #     cos_theta = safe_divide(numerator, denominator)
-    #     return cos_theta
-    #
-    # def proton_angle(E_p, E_nu, p_p):
-    #     numerator = M_l ** 2 - M_n ** 2 - M_p ** 2 + 2 * E_p * M_n - 2 * M_n * E_nu + 2 * E_p * E_nu
-    #     denominator = 2 * p_p * E_nu
-    #     cos_theta = numerator/denominator
-    #     return cos_theta
-    #
-    # cos_theta_p = proton_angle(E_p, E_nu, p_p)
-    # cos_theta_l = lepton_angle(E_l, E_nu, p_p)
-    #
-    # # constructing the data array shape = (6, 10)
-    # data_arr = np.column_stack((E_nu, Q, E_p, p_p, E_l, p_l, cos_theta_p, cos_theta_l))
+    def lepton_angle(E_l, E_nu, p_l):
+        numerator = M_p ** 2 - M_n ** 2 - M_l ** 2 + 2 * E_l * M_n - 2 * M_n * E_nu + 2 * E_l * E_nu
+        denominator = 2 * p_l * E_nu
+        cos_theta = safe_divide(numerator, denominator)
+        return cos_theta
 
-    data_arr = np.column_stack((E_nu, Q, E_p, p_p, E_l, p_l))
+    def proton_angle(E_p, E_nu, p_p):
+        numerator = M_l ** 2 - M_n ** 2 - M_p ** 2 + 2 * E_p * M_n - 2 * M_n * E_nu + 2 * E_p * E_nu
+        denominator = 2 * p_p * E_nu
+        cos_theta = numerator/denominator
+        return cos_theta
+
+    cos_theta_p = proton_angle(E_p, E_nu, p_p)
+    cos_theta_l = lepton_angle(E_l, E_nu, p_p)
+
+    # constructing the data array shape = (6, 10)
+    data_arr = np.column_stack((E_nu, Q, E_p, p_p, E_l, p_l, cos_theta_p, cos_theta_l))
     return data_arr
 
 
@@ -116,14 +110,8 @@ def Efficiency_func(p, eff_max, p_th, nu, xi, delt, phi):
     Returns: the probability of detecting a daughter particle in a particular event
     """
     sigma = (1 / xi) ** nu - 1
-
-    print(sigma)
-
     alpha = 1 / (delt * nu * p_th) * np.log(((1 / phi) ** nu - 1) / sigma)
-    print(alpha)
-
     eff = eff_max / (1 + sigma * np.exp(-alpha * nu * (p - p_th)))  # efficiency = P("click")
-
     return eff
 
 
@@ -131,8 +119,6 @@ def DetectorAcceptance(data_array):
     """
     Args:
         data_array: the data array generated using the Toy Model
-        threshold: detection threshold (momentum value)
-
     Returns:
     """
 
@@ -146,14 +132,14 @@ def DetectorAcceptance(data_array):
     eff_max_p = 1.0  # [probability]
     nu_p = 1.0
     xi_p = 0.5  # [probability]
-    delt_p = 0.01 * p_th_p  # [MeV/c]
+    delt_p = 0.1 * p_th_p  # [MeV/c]
     phi_p = 0.2  # [probability]
 
     p_th_l = 100  # [MeV/c]
     eff_max_l = 1.0  # [probability]
     nu_l = 1.0
     xi_l = 0.7  # [probability]
-    delt_l = 0.01 * p_th_l  # [MeV/c]
+    delt_l = 0.1 * p_th_l  # [MeV/c]
     phi_l = 0.3  # [probability]
 
     proton_det_prob = Efficiency_func(p_p, eff_max_p, p_th_p, nu_p, xi_p, delt_p, phi_p)
@@ -208,7 +194,6 @@ if __name__ == '__main__':
     fully_reconst_cond = np.logical_not(np.isnan(detected_data).any(axis=1))
     fully_reconstructed_data = detected_data[fully_reconst_cond]
 
-
     """Only pronton track"""
     proton_reconst_cond = np.logical_and(np.logical_not(np.isnan(detected_data[:, 2])),
                                          np.isnan(detected_data[:, 4]))
@@ -231,9 +216,9 @@ if __name__ == '__main__':
               label="all generated data")
     ax11.hist(fully_reconstructed_data[:, 0], bins=num_bins, color=full_reconst_c, histtype="step",
               label="full reconstructed")
-    ax11.hist(proton_reconstructed_data[:, 0], bins=num_bins, color=proton_reconst_c,  histtype="step",
+    ax11.hist(proton_reconstructed_data[:, 0], bins=num_bins, color=proton_reconst_c, histtype="step",
               label="Just proton reconst.")
-    ax11.hist(lepton_reconstructed_data[:, 0], bins=num_bins, color=lepton_reconst_c,  histtype="step",
+    ax11.hist(lepton_reconstructed_data[:, 0], bins=num_bins, color=lepton_reconst_c, histtype="step",
               label="Just lepton reconst.")
 
     ax11.grid()
@@ -241,13 +226,13 @@ if __name__ == '__main__':
     ax11.set_ylabel("count", fontsize=axis_font_size)
     ax11.legend()
 
-    ax12.hist(data[:, 1]**2, bins=num_bins, color=all_data_c, histtype="step",
+    ax12.hist(data[:, 1] ** 2, bins=num_bins, color=all_data_c, histtype="step",
               label="all generated data")
-    ax12.hist(fully_reconstructed_data[:, 1]**2, bins=num_bins, color=full_reconst_c, histtype="step",
+    ax12.hist(fully_reconstructed_data[:, 1] ** 2, bins=num_bins, color=full_reconst_c, histtype="step",
               label="full reconstructed")
-    ax12.hist(proton_reconstructed_data[:, 1]**2 ,bins=num_bins, color=proton_reconst_c, histtype="step",
+    ax12.hist(proton_reconstructed_data[:, 1] ** 2, bins=num_bins, color=proton_reconst_c, histtype="step",
               label="Just proton reconst.")
-    ax12.hist(lepton_reconstructed_data[:, 1]**2, bins=num_bins, color=lepton_reconst_c, histtype="step",
+    ax12.hist(lepton_reconstructed_data[:, 1] ** 2, bins=num_bins, color=lepton_reconst_c, histtype="step",
               label="Just lepton reconst.")
 
     ax12.grid()
@@ -268,7 +253,7 @@ if __name__ == '__main__':
               label="all generated data")
     ax21.hist(fully_reconstructed_data[:, 2], bins=num_bins, color=full_reconst_c, histtype="step",
               label="full reconstructed")
-    ax21.hist(proton_reconstructed_data[:, 2], bins=num_bins,  color=proton_reconst_c, histtype="step",
+    ax21.hist(proton_reconstructed_data[:, 2], bins=num_bins, color=proton_reconst_c, histtype="step",
               label="Just proton reconst.")
 
     ax21.set_title("Proton")
@@ -277,12 +262,12 @@ if __name__ == '__main__':
     ax21.set_ylabel("count", fontsize=axis_font_size)
     ax21.legend()
 
-    ax22.hist(data[:, 3], color=all_data_c, histtype="step",
-              label="all generated data")
-    ax22.hist(fully_reconstructed_data[:, 3],  color=full_reconst_c, histtype="step",
-              label="full reconstructed")
-    ax22.hist(proton_reconstructed_data[:, 3], color=proton_reconst_c, histtype="step",
-              label="Just proton reconst.")
+    counts_all, bins_all, _ = ax22.hist(data[:, 3], color=all_data_c, histtype="step",
+                                        label="all generated data")
+    counts_full_rec, bins_full_rec, _ = ax22.hist(fully_reconstructed_data[:, 3], color=full_reconst_c, histtype="step",
+                                                  label="full reconstructed")
+    counts_just_p, bins_just_p, _ = ax22.hist(proton_reconstructed_data[:, 3], color=proton_reconst_c, histtype="step",
+                                              label="Just proton reconst.")
 
     ax22.grid()
     ax22.set_xlabel(r"$|\vec{p}_p|$", fontsize=axis_font_size)
@@ -316,16 +301,15 @@ if __name__ == '__main__':
     ax32.set_xlabel(r"$|\vec{p}_l|$", fontsize=axis_font_size)
     ax32.legend()
 
-
-    # empicical efficiency
-    fig4 = plt.figure(figsize=(12,9))
+    # empirical efficiency
+    fig4 = plt.figure(figsize=(12, 9))
     ax41 = fig4.add_subplot(121)
     ax42 = fig4.add_subplot(122)
     p_p = data[:, 2][np.logical_not(np.isnan(data[:, 2]))]
     p_l = data[:, 5][np.logical_not(np.isnan(data[:, 5]))]
 
-    x_p = np.linspace(0, 1.5 * np.max(p_p), 1000)
-    x_l = np.linspace(0, 1.5 * np.max(p_l), 1000)
+    x_p = np.linspace(np.min(p_p), np.max(p_p), 1000)
+    x_l = np.linspace(np.min(p_l), np.max(p_l), 1000)
 
     p_th_p = 300  # [MeV/c]
     eff_max_p = 1.0  # [probability]
@@ -340,16 +324,6 @@ if __name__ == '__main__':
     xi_l = 0.7  # [probability]
     delt_l = 0.1 * p_th_l  # [MeV/c]
     phi_l = 0.3  # [probability]
-
-    ax41.plot(x_p, Efficiency_func(x_p, eff_max_p, p_th_p,nu_p, xi_p, delt_p, phi_p))
-    ax42.plot(x_l, Efficiency_func(x_l, eff_max_l, p_th_l, nu_l, xi_l, delt_p, phi_l))
-
-
-
-
-
-
-
 
     plt.tight_layout()
     plt.show()
