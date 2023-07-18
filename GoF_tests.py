@@ -11,6 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from scipy.stats import chi2
+from scipy.spatial.distance import cdist
 
 
 class BinData:
@@ -81,7 +82,7 @@ class GoF:
         This is a binned Goodness of fit test and as such calls on the functionality of the bin_data class
 
 
-        Returns: Pearson's Chi-squared test statistics
+        Returns: Pearson's Chi-squared test statistics and the number of degrees of freedom
         """
 
         # Binning the data
@@ -112,7 +113,7 @@ class GoF:
         """
         This is a binned Goodness of fit test and as such calls on the functionality of the bin_data class
 
-        Returns: The Poisson likelihood ratio test statistic
+        Returns: The Poisson likelihood ratio test statistic and the number of degrees of freedom
         """
 
         # Binning the data
@@ -129,8 +130,75 @@ class GoF:
 
         return Fp_stat, DoF
 
+    def Point_to_Point_DissimExp(self):
+        """
+        This is a un-binned multidimensional GoF test
+        EXPERIMENTAL
+        Returns: Returns the point-to-point dissimilarity test statistic T
+        """
+
+        X_meas = self.measured
+        X_pred = self.predicted
+
+        n_meas = len(X_meas)
+        n_pred = len(X_pred)
+
+
+        # Calculate the distance matrices
+        dist_meas = cdist(X_meas[:, np.newaxis], X_meas[:, np.newaxis])
+        dist_pred = cdist(X_meas[:, np.newaxis], X_pred[:, np.newaxis])
+
+        # Calculate the sum of Psi(|x_i_meas - x_j_meas|)
+        sum_meas = np.sum(np.triu(np.exp(-dist_meas), k=1))
+
+        # Calculate the sum of Psi(|x_i_meas - x_j_pred|)
+        sum_pred = np.sum(np.exp(-dist_pred))
+
+        # Calculate T statistic
+        T = (1 / (n_meas ** 2)) * sum_meas - (1 / (n_meas * n_pred)) * sum_pred
+
+        return T
+
     def Point_to_Point_Dissim(self):
-        pass
+        """
+        This is a un-binned multidimensional GoF test
+        DUMB implementation (double for loop)
+        Returns: Returns the point-to-point dissimilarity test statistic T
+        """
+
+        X_meas = self.measured
+        X_pred = self.predicted
+
+        n_meas = len(X_meas)
+        n_pred = len(X_pred)
+
+        def Psi(x):
+            # Define the weight function
+            return np.exp(-x)
+
+        # Calculate the sum of Psi(|x_i_meas - x_j_meas|)
+        sum_meas = 0
+        for i in range(n_meas):
+            for j in range(i + 1, n_meas):
+                distance = np.linalg.norm(X_meas[i] - X_meas[j])
+                sum_meas += Psi(distance)
+
+        # Calculate the sum of Psi(|x_i_meas - x_j_pred|)
+        sum_pred = 0
+        for i in range(n_meas):
+            for j in range(n_pred):
+                distance = np.linalg.norm(X_meas[i] - X_pred[j])
+                sum_pred += Psi(distance)
+
+        # Calculate T statistic
+        T = (1 / (n_meas ** 2)) * sum_meas - (1 / (n_meas * n_pred)) * sum_pred
+
+        return T
+
+
+
+
+
 
 
 def Pval_Chi2Distribution(test_stat, N_DoF):
@@ -146,9 +214,13 @@ meas = pred + epsilon * rng.normal(loc=1, scale=1, size=1000)
 
 test = GoF(pred, meas)
 
-ch2, dof_chi2 = test.PearsonChi2()
-Fp, dof_Fp = test.Poisson_Likelihood_Ratio()
 
-print(Pval_Chi2Distribution(ch2, dof_chi2))
-print(Pval_Chi2Distribution(Fp, dof_Fp))  # these are not equal,
-# have to ask Morgan about DoF of the Poisson likelihood ratio
+print(test.Point_to_Point_DissimExp())
+
+print(test.Point_to_Point_Dissim())
+# ch2, dof_chi2 = test.PearsonChi2()
+# Fp, dof_Fp = test.Poisson_Likelihood_Ratio()
+#
+# print(Pval_Chi2Distribution(ch2, dof_chi2))
+# print(Pval_Chi2Distribution(Fp, dof_Fp))  # these are not equal,
+# # have to ask Morgan about DoF of the Poisson likelihood ratio
