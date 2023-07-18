@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import chi2
 
 
-class bin_data:
+class BinData:
     def __init__(self, data, N_init=None, min_occ=None):
 
         self.data = data
@@ -21,7 +21,6 @@ class bin_data:
         # input error handling
 
         # default value assignment
-
         default_N_init = 100
 
         if N_init is None:
@@ -37,13 +36,7 @@ class bin_data:
 
     def merge_bin(self):
         """
-        Args:
-            data: data array to be binned
-            N_init: initial guess for the number of bins
-            min_occ: minimum occupancy for
-
         Returns: The bin edges and bin counts for the data array
-
         """
         data_min = np.min(self.data)
         data_max = np.max(self.data)
@@ -58,9 +51,9 @@ class bin_data:
             min_count_idx = np.argmin(bin_counts)
 
             # Merge the bin with its neighboring bin that has the fewest entries
-            if min_count_idx == 0:
+            if min_count_idx == 0:  # left edge case
                 merge_idx = 1
-            elif min_count_idx == len(bin_counts) - 1:
+            elif min_count_idx == len(bin_counts) - 1:  # right edge case
                 merge_idx = len(bin_counts) - 2
             else:
                 left_count = bin_counts[min_count_idx - 1]
@@ -83,19 +76,22 @@ class GoF:
             self.predicted = predicted
             self.measured = measured
 
-    def Chi2(self):
+    def PearsonChi2(self):
         """
-        Returns: The Pearson chi-square statistic for the predicted and measured data arrays
+        This is a binned Goodness of fit test and as such calls on the functionality of the bin_data class
+
+
+        Returns: Pearson's Chi-squared test statistics
         """
 
         # Binning the data
         # Always bin data based on theory i.e. bin based on predicted.
-        init_data_to_bin = bin_data(self.predicted)  # call the data binning class
+        init_data_to_bin = BinData(self.predicted)  # call the data binning class
         pred_bin_counts, pred_bin_edges = init_data_to_bin.merge_bin()  # calls the specific binning algorith
 
         # bin measured data according to the same bin edges as the predicted data
 
-        meas_bin_counts, meas_bin_edges = np.histogram(self.measured, bins=pred_bin_edges)
+        meas_bin_counts, meas_bin_edges = np.histogram(self.measured, bins=pred_bin_edges)  # bin the measured data
 
         # print(np.all(pred_bin_edges == meas_bin_edges))
         #
@@ -109,16 +105,37 @@ class GoF:
 
         chi2_stat = np.sum((meas_bin_counts - pred_bin_counts) ** 2 / pred_bin_counts)
         # TODO: add axis argument to sum if data storge format has been decided
-        DoF = len(meas_bin_counts)
+        DoF = len(meas_bin_counts) - 1
         return chi2_stat, DoF
 
-    def Pval_from_Chi2(self):
+    def Poisson_Likelihood_Ratio(self):
+        """
+        This is a binned Goodness of fit test and as such calls on the functionality of the bin_data class
 
-        chi2_stat, DoF = self.Chi2()
-        Pvalue = 1 - chi2.cdf(chi2_stat, DoF)
+        Returns: The Poisson likelihood ratio test statistic
+        """
 
-        return Pvalue, chi2_stat, DoF
+        # Binning the data
+        # Always bin data based on theory i.e. bin based on predicted.
+        init_data_to_bin = BinData(self.predicted)  # call the data binning class
+        pred_bin_counts, pred_bin_edges = init_data_to_bin.merge_bin()  # calls the specific binning algorith
 
+        meas_bin_counts, meas_bin_edges = np.histogram(self.measured, bins=pred_bin_edges)  # bin the measured data
+
+        Fp_stat = 2 * np.sum(
+            pred_bin_counts - meas_bin_counts + pred_bin_counts * np.log(meas_bin_counts / pred_bin_counts
+                                                                         ))
+        DoF = len(meas_bin_counts)
+
+        return Fp_stat, DoF
+
+    def Point_to_Point_Dissim(self):
+        pass
+
+
+def Pval_Chi2Distribution(test_stat, N_DoF):
+    p_value = 1 - chi2.cdf(test_stat, N_DoF)
+    return p_value
 
 
 
@@ -129,4 +146,9 @@ meas = pred + epsilon * rng.normal(loc=1, scale=1, size=1000)
 
 test = GoF(pred, meas)
 
-print(test.Pval_from_Chi2())
+ch2, dof_chi2 = test.PearsonChi2()
+Fp, dof_Fp = test.Poisson_Likelihood_Ratio()
+
+print(Pval_Chi2Distribution(ch2, dof_chi2))
+print(Pval_Chi2Distribution(Fp, dof_Fp))  # these are not equal,
+# have to ask Morgan about DoF of the Poisson likelihood ratio
