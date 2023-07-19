@@ -11,11 +11,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-rng = np.random.default_rng(seed=1)
-np.set_printoptions(precision=5, linewidth=150)
-
 from scipy.stats import chi2
 from scipy.spatial.distance import cdist
+
+rng = np.random.default_rng(seed=124)
+np.set_printoptions(precision=5, linewidth=150)
 
 
 class BinData:
@@ -147,14 +147,17 @@ class GoF:
         def Psi(x):
             # Define the weight function
             sigma = 1
-            return np.exp(-x**2/(2*sigma**2))
+            return np.exp(-x ** 2 / (2 * sigma ** 2))
 
         # Calculate the distance matrices
-        dist_meas = cdist(X_meas[:, np.newaxis], X_meas[:, np.newaxis])
-
-        dist_pred = cdist(X_pred[:, np.newaxis], X_pred[:, np.newaxis])
-
-        dist_mixed = cdist(X_meas[:, np.newaxis], X_pred[:, np.newaxis])
+        if np.ndim(X_meas) == 1:
+            dist_meas = cdist(X_meas[:, np.newaxis], X_meas[:, np.newaxis])
+            dist_pred = cdist(X_pred[:, np.newaxis], X_pred[:, np.newaxis])
+            dist_mixed = cdist(X_meas[:, np.newaxis], X_pred[:, np.newaxis])
+        else:
+            dist_meas = cdist(X_meas, X_meas)
+            dist_pred = cdist(X_pred, X_pred)
+            dist_mixed = cdist(X_meas, X_pred)
 
         # Term 1: Calculate the sum of Psi(|x_i_meas - x_j_meas|)
         sum_meas = np.sum(np.triu(Psi(dist_meas), k=1))
@@ -165,11 +168,10 @@ class GoF:
         # Term 3: Calculate the sum of Psi(|x_i_meas - x_j_pred|)
         sum_mixed = np.sum(Psi(dist_mixed))
 
-
-        print("Vectorised")
-        print(sum_meas)
-        print(sum_pred)
-        print(sum_mixed)
+        # print("Vectorised")
+        # print(sum_meas)
+        # print(sum_pred)
+        # print(sum_mixed)
 
         # Calculate T statistic
         T = 1 / (n_meas * (n_meas - 1)) * sum_meas \
@@ -185,7 +187,7 @@ class GoF:
         Returns: Returns the point-to-point dissimilarity test statistic T
         """
 
-        class p2pdWeightFunctions:
+        class P2PdWeightFunctions:
             def __init__(self, dist):
                 self.dist = dist
 
@@ -202,8 +204,6 @@ class GoF:
             # Define the weight function
             sigma = 1
             return np.exp(-x ** 2 / (2 * sigma ** 2))
-
-
 
         # Term 1: Calculate the sum of Psi(|x_i_meas - x_j_meas|)
         sum_meas = 0
@@ -226,11 +226,10 @@ class GoF:
                 distance = np.linalg.norm(X_meas[i] - X_pred[j])
                 sum_mixed += Psi(distance)
 
-        print("Loops")
-        print(sum_meas)
-        print(sum_pred)
-        print(sum_mixed)
-
+        # print("Loops")
+        # print(sum_meas)
+        # print(sum_pred)
+        # print(sum_mixed)
 
         # Calculate T statistic
         T = 1 / (n_meas * (n_meas - 1)) * sum_meas \
@@ -275,25 +274,33 @@ def Permuation_Method(pred, meas, n_perms):
     return p_val
 
 
+pred = np.hstack((rng.normal(loc=3, scale=1, size=1000)[:, np.newaxis],
+                  rng.exponential(scale=1, size=1000)[:, np.newaxis]))
 
-
-
-
-
-pred = rng.exponential(scale=1, size=1000)
+print(pred.shape)
 epsilon = 0
-meas = rng.exponential(scale=1, size=100) + epsilon * rng.normal(loc=1, scale=1, size=100)
-#
+meas = np.hstack((rng.normal(loc=0, scale=1, size=1000)[:, np.newaxis],
+                  rng.exponential(scale=1, size=1000)[:, np.newaxis]))
+
+
+plt.scatter(pred[:, 0:1], pred[:, 1:2], c="k")
+
+plt.scatter(meas[:, 0:1], meas[:, 1:2], c="r")
+plt.show()
+
+
 test = GoF(pred, meas)
-#
+
 print(test.Point_to_Point_DissimExp())
 print(test.Point_to_Point_Dissim())  # the vectorised and dumb versions of p2pd give the same test statistics
 
 # print(Permuation_Method(pred, meas, 100))
-#
+# # #
 # ch2, dof_chi2 = test.PearsonChi2()
-# Fp, dof_Fp = test.Poisson_Likelihood_Ratio()
 #
+# print(ch2)
+# # # Fp, dof_Fp = test.Poisson_Likelihood_Ratio()
+# # #
 # print(Pval_Chi2Distribution(ch2, dof_chi2))
 # print(Pval_Chi2Distribution(Fp, dof_Fp))  # these are not equal,
 # # have to ask Morgan about DoF of the Poisson likelihood ratio
