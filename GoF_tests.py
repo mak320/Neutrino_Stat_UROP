@@ -9,6 +9,10 @@ All tests should out their test statistics only, P-value calculation from the te
 
 import numpy as np
 import matplotlib.pyplot as plt
+from tqdm import tqdm
+
+rng = np.random.default_rng(seed=1)
+np.set_printoptions(precision=5, linewidth=150)
 
 from scipy.stats import chi2
 from scipy.spatial.distance import cdist
@@ -71,11 +75,8 @@ class BinData:
 class GoF:
     def __init__(self, predicted, measured):
 
-        if predicted.shape != measured.shape:
-            raise ValueError("The shapes of A and B are not the same.")
-        else:
-            self.predicted = predicted
-            self.measured = measured
+        self.predicted = predicted
+        self.measured = measured
 
     def PearsonChi2(self):
         """
@@ -143,19 +144,37 @@ class GoF:
         n_meas = len(X_meas)
         n_pred = len(X_pred)
 
+        def Psi(x):
+            # Define the weight function
+            sigma = 1
+            return np.exp(-x**2/(2*sigma**2))
 
         # Calculate the distance matrices
         dist_meas = cdist(X_meas[:, np.newaxis], X_meas[:, np.newaxis])
-        dist_pred = cdist(X_meas[:, np.newaxis], X_pred[:, np.newaxis])
 
-        # Calculate the sum of Psi(|x_i_meas - x_j_meas|)
-        sum_meas = np.sum(np.triu(np.exp(-dist_meas), k=1))
+        dist_pred = cdist(X_pred[:, np.newaxis], X_pred[:, np.newaxis])
 
-        # Calculate the sum of Psi(|x_i_meas - x_j_pred|)
-        sum_pred = np.sum(np.exp(-dist_pred))
+        dist_mixed = cdist(X_meas[:, np.newaxis], X_pred[:, np.newaxis])
+
+        # Term 1: Calculate the sum of Psi(|x_i_meas - x_j_meas|)
+        sum_meas = np.sum(np.triu(Psi(dist_meas), k=1))
+
+        # Term 2: Calculate the sum of Psi(|x_i_pred - x_j_pred|)
+        sum_pred = np.sum(np.triu(Psi(dist_pred), k=1))
+
+        # Term 3: Calculate the sum of Psi(|x_i_meas - x_j_pred|)
+        sum_mixed = np.sum(Psi(dist_mixed))
+
+
+        print("Vectorised")
+        print(sum_meas)
+        print(sum_pred)
+        print(sum_mixed)
 
         # Calculate T statistic
-        T = (1 / (n_meas ** 2)) * sum_meas - (1 / (n_meas * n_pred)) * sum_pred
+        T = 1 / (n_meas * (n_meas - 1)) * sum_meas \
+            + 1 / (n_pred * (n_pred - 1)) * sum_pred \
+            - 1 / (n_meas * n_pred) * sum_mixed
 
         return T
 
@@ -166,6 +185,13 @@ class GoF:
         Returns: Returns the point-to-point dissimilarity test statistic T
         """
 
+        class p2pdWeightFunctions:
+            def __init__(self, dist):
+                self.dist = dist
+
+            def NonAdaptive(self):
+                pass
+
         X_meas = self.measured
         X_pred = self.predicted
 
@@ -174,31 +200,44 @@ class GoF:
 
         def Psi(x):
             # Define the weight function
-            return np.exp(-x)
+            sigma = 1
+            return np.exp(-x ** 2 / (2 * sigma ** 2))
 
-        # Calculate the sum of Psi(|x_i_meas - x_j_meas|)
+
+
+        # Term 1: Calculate the sum of Psi(|x_i_meas - x_j_meas|)
         sum_meas = 0
-        for i in range(n_meas):
+        for i in tqdm(range(n_meas)):
             for j in range(i + 1, n_meas):
                 distance = np.linalg.norm(X_meas[i] - X_meas[j])
                 sum_meas += Psi(distance)
 
-        # Calculate the sum of Psi(|x_i_meas - x_j_pred|)
+        # Term 2 : Calculate the sum of Psi(|x_i_pred - x_j_pred|)
         sum_pred = 0
-        for i in range(n_meas):
-            for j in range(n_pred):
-                distance = np.linalg.norm(X_meas[i] - X_pred[j])
+        for i in tqdm(range(n_pred)):
+            for j in range(i + 1, n_pred):
+                distance = np.linalg.norm(X_pred[i] - X_pred[j])
                 sum_pred += Psi(distance)
 
+        # Term 3: Calculate the sum of Psi(|x_i_meas - x_j_pred|)
+        sum_mixed = 0
+        for i in tqdm(range(n_meas)):
+            for j in range(n_pred):
+                distance = np.linalg.norm(X_meas[i] - X_pred[j])
+                sum_mixed += Psi(distance)
+
+        print("Loops")
+        print(sum_meas)
+        print(sum_pred)
+        print(sum_mixed)
+
+
         # Calculate T statistic
-        T = (1 / (n_meas ** 2)) * sum_meas - (1 / (n_meas * n_pred)) * sum_pred
+        T = 1 / (n_meas * (n_meas - 1)) * sum_meas \
+            + 1 / (n_pred * (n_pred - 1)) * sum_pred \
+            - 1 / (n_meas * n_pred) * sum_mixed
 
         return T
-
-
-
-
-
 
 
 def Pval_Chi2Distribution(test_stat, N_DoF):
@@ -206,18 +245,52 @@ def Pval_Chi2Distribution(test_stat, N_DoF):
     return p_value
 
 
+def Permuation_Method(pred, meas, n_perms):
+    n_meas = len(meas)
 
-rng = np.random.default_rng(seed=1)
+    # perform un-shuffled p2pd test
+    T = GoF(pred, meas).Point_to_Point_DissimExp()
+
+    T_perm_arr = []
+
+    for i in range(n_perms):
+        pooled_data = np.append(pred, meas)
+        rng.shuffle(pooled_data)
+
+        # selecting the temporary measurement set by randomly drawing n_meas elements from the pooled data
+        meas_perm = rng.choice(pooled_data, n_meas,
+                               replace=False)  # replace argument has to be false to avoid duplicates
+
+        # the remaining events are designated predictions temporarily
+        pred_perm = np.setdiff1d(pooled_data, meas_perm)
+
+        T_perm = GoF(pred_perm, meas_perm).Point_to_Point_DissimExp()
+
+        T_perm_arr.append(T_perm)
+
+    T_perm_arr = np.array(T_perm_arr)
+
+    p_val = np.sum(T < T_perm_arr) / len(T_perm_arr)
+
+    return p_val
+
+
+
+
+
+
+
 pred = rng.exponential(scale=1, size=1000)
-epsilon = 0.02
-meas = pred + epsilon * rng.normal(loc=1, scale=1, size=1000)
-
+epsilon = 0
+meas = rng.exponential(scale=1, size=100) + epsilon * rng.normal(loc=1, scale=1, size=100)
+#
 test = GoF(pred, meas)
-
-
+#
 print(test.Point_to_Point_DissimExp())
+print(test.Point_to_Point_Dissim())  # the vectorised and dumb versions of p2pd give the same test statistics
 
-print(test.Point_to_Point_Dissim())
+# print(Permuation_Method(pred, meas, 100))
+#
 # ch2, dof_chi2 = test.PearsonChi2()
 # Fp, dof_Fp = test.Poisson_Likelihood_Ratio()
 #
