@@ -287,52 +287,57 @@ A = np.hstack((
     rng.normal(loc=muAy, scale=sigAy, size=nA)[:, np.newaxis]
 ))
 
-thetas = np.linspace(0, 2 * np.pi, 1000)
-R = 2
 
+muBy = 0.0
 sigBx = 0.2
 sigBy = 0.2
 
-T_arr = []
-T_arr2 = []
-T_arr5 = []
+separation = np.linspace(0, 10, 1000)
 
-for t in thetas:
-    muBx = R * np.cos(t)
-    muBy = R * np.sin(t)
+B_list = [np.hstack((
+    rng.normal(loc=muBx, scale=sigBx, size=nB)[:, np.newaxis],
+    rng.normal(loc=muBy, scale=sigBy, size=nB)[:, np.newaxis]
+)) for muBx in separation
+]
 
-    B = np.hstack((
-        rng.normal(loc=muBx, scale=sigBx, size=nB)[:, np.newaxis],
-        rng.normal(loc=muBy, scale=sigBy, size=nB)[:, np.newaxis]
-    ))
-
-    B2 = np.hstack((
-        rng.normal(loc=muBx, scale=sigBx*2, size=nB)[:, np.newaxis],
-        rng.normal(loc=muBy, scale=sigBy*2, size=nB)[:, np.newaxis]
-    ))
-
-    B5 = np.hstack((
-        rng.normal(loc=muBx, scale=sigBx*5, size=nB)[:, np.newaxis],
-        rng.normal(loc=muBy, scale=sigBy*5, size=nB)[:, np.newaxis]
-    ))
+# B_list2 = [np.hstack((
+#     rng.normal(loc=muBx, scale=sigBx * 2, size=nB)[:, np.newaxis],
+#     rng.normal(loc=muBy, scale=sigBy * 2, size=nB)[:, np.newaxis]
+# )) for muBx in separation
+# ]
+#
+# B_list5 = [np.hstack((
+#     rng.normal(loc=muBx, scale=sigBx * 5, size=nB)[:, np.newaxis],
+#     rng.normal(loc=muBy, scale=sigBy * 5, size=nB)[:, np.newaxis]
+# )) for muBx in separation
+# ]
 
 
-    T_arr.append(GoF(A, B).Point_to_Point_DissimExp())
-    T_arr2.append(GoF(A, B2).Point_to_Point_DissimExp())
-    T_arr5.append(GoF(A, B5).Point_to_Point_DissimExp())
+T_list = []
+T_list2 = []
+T_list5 = []
+
+for i in range(len(B_list)):
+    T = GoF(A, B_list[i]).Point_to_Point_DissimExp()
+    T_list.append(T)
+
+    # T = GoF(A, B_list2[i]).Point_to_Point_DissimExp()
+    # T_list2.append(T)
+    #
+    # T = GoF(A, B_list5[i]).Point_to_Point_DissimExp()
+    # T_list5.append(T)
 
 
-plt.plot(thetas, (T_arr5-np.mean(T_arr5))/(np.mean(T_arr5)), label=r"$\sigma = %.2f$" % (5 * sigBx))
-plt.plot(thetas, (T_arr2-np.mean(T_arr2))/(np.mean(T_arr2)), label=r"$\sigma = %.2f$" % (3 * sigBx))
-plt.plot(thetas, (T_arr-np.mean(T_arr))/(np.mean(T_arr)), label=r"$\sigma = %.2f$" % (sigBx))
+plt.plot(separation, T_list, label = r"$\sigma = 0.2$")
+# plt.plot(separation, T_list2, label = r"$\sigma = 0.4$")
+# plt.plot(separation, T_list5, label = r"$\sigma = 1.0$")
 
 
-plt.xlabel(r"$\theta$", fontsize=14)
-plt.ylabel(r"$\frac{T- \langle T\rangle}{\langle T \rangle}$", fontsize=14)
+plt.xlabel("separation")
+plt.ylabel("T")
+plt.legend(fontsize=12)
 plt.grid()
 
-
-plt.legend(fontsize=12)
 plt.tight_layout()
 plt.show()
 
