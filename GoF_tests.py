@@ -274,33 +274,79 @@ def Permuation_Method(pred, meas, n_perms):
     return p_val
 
 
-pred = np.hstack((rng.normal(loc=3, scale=1, size=1000)[:, np.newaxis],
-                  rng.exponential(scale=1, size=1000)[:, np.newaxis]))
+nA = 1000
+nB = 100
 
-print(pred.shape)
-epsilon = 0
-meas = np.hstack((rng.normal(loc=0, scale=1, size=1000)[:, np.newaxis],
-                  rng.exponential(scale=1, size=1000)[:, np.newaxis]))
+muAx = 0.0
+muAy = 0.0
+sigAx = 0.2
+sigAy = 0.2
+
+A = np.hstack((
+    rng.normal(loc=muAx, scale=sigAx, size=nA)[:, np.newaxis],
+    rng.normal(loc=muAy, scale=sigAy, size=nA)[:, np.newaxis]
+))
+
+thetas = np.linspace(0, 2 * np.pi, 1000)
+R = 2
+
+sigBx = 0.2
+sigBy = 0.2
+
+T_arr = []
+T_arr2 = []
+T_arr5 = []
+
+for t in thetas:
+    muBx = R * np.cos(t)
+    muBy = R * np.sin(t)
+
+    B = np.hstack((
+        rng.normal(loc=muBx, scale=sigBx, size=nB)[:, np.newaxis],
+        rng.normal(loc=muBy, scale=sigBy, size=nB)[:, np.newaxis]
+    ))
+
+    B2 = np.hstack((
+        rng.normal(loc=muBx, scale=sigBx*2, size=nB)[:, np.newaxis],
+        rng.normal(loc=muBy, scale=sigBy*2, size=nB)[:, np.newaxis]
+    ))
+
+    B5 = np.hstack((
+        rng.normal(loc=muBx, scale=sigBx*5, size=nB)[:, np.newaxis],
+        rng.normal(loc=muBy, scale=sigBy*5, size=nB)[:, np.newaxis]
+    ))
 
 
-plt.scatter(pred[:, 0:1], pred[:, 1:2], c="k")
+    T_arr.append(GoF(A, B).Point_to_Point_DissimExp())
+    T_arr2.append(GoF(A, B2).Point_to_Point_DissimExp())
+    T_arr5.append(GoF(A, B5).Point_to_Point_DissimExp())
 
-plt.scatter(meas[:, 0:1], meas[:, 1:2], c="r")
+
+plt.plot(thetas, (T_arr5-np.mean(T_arr5))/(np.mean(T_arr5)), label=r"$\sigma = %.2f$" % (5 * sigBx))
+plt.plot(thetas, (T_arr2-np.mean(T_arr2))/(np.mean(T_arr2)), label=r"$\sigma = %.2f$" % (3 * sigBx))
+plt.plot(thetas, (T_arr-np.mean(T_arr))/(np.mean(T_arr)), label=r"$\sigma = %.2f$" % (sigBx))
+
+
+plt.xlabel(r"$\theta$", fontsize=14)
+plt.ylabel(r"$\frac{T- \langle T\rangle}{\langle T \rangle}$", fontsize=14)
+plt.grid()
+
+
+plt.legend(fontsize=12)
+plt.tight_layout()
 plt.show()
 
 
-test = GoF(pred, meas)
+def plot_distrib():
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
 
-print(test.Point_to_Point_DissimExp())
-print(test.Point_to_Point_Dissim())  # the vectorised and dumb versions of p2pd give the same test statistics
+    ax1.scatter(A[:, 0:1], A[:, 1:2], s=10, c='k', marker="x", label="A")
+    ax1.scatter(B[:, 0:1], B[:, 1:2], s=10, c='r', marker="v", label="B")
 
-# print(Permuation_Method(pred, meas, 100))
-# # #
-# ch2, dof_chi2 = test.PearsonChi2()
-#
-# print(ch2)
-# # # Fp, dof_Fp = test.Poisson_Likelihood_Ratio()
-# # #
-# print(Pval_Chi2Distribution(ch2, dof_chi2))
-# print(Pval_Chi2Distribution(Fp, dof_Fp))  # these are not equal,
-# # have to ask Morgan about DoF of the Poisson likelihood ratio
+    ax1.set_xlabel("x")
+    ax1.set_ylabel("y")
+
+    ax1.legend()
+    plt.tight_layout()
+    plt.show()
