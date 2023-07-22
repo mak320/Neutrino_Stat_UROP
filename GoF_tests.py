@@ -288,52 +288,52 @@ A = np.hstack((
 ))
 
 
-muBy = 0.0
-sigBx = 0.2
-sigBy = 0.2
 
-separation = np.linspace(0, 10, 1000)
+
+widths = np.linspace(0, 2, 1000)
 
 B_list = [np.hstack((
-    rng.normal(loc=muBx, scale=sigBx, size=nB)[:, np.newaxis],
-    rng.normal(loc=muBy, scale=sigBy, size=nB)[:, np.newaxis]
-)) for muBx in separation
+    rng.normal(loc=1.0, scale=sigma, size=nB)[:, np.newaxis],
+    rng.normal(loc=0.0, scale=sigma, size=nB)[:, np.newaxis]
+)) for sigma in widths
 ]
 
-# B_list2 = [np.hstack((
-#     rng.normal(loc=muBx, scale=sigBx * 2, size=nB)[:, np.newaxis],
-#     rng.normal(loc=muBy, scale=sigBy * 2, size=nB)[:, np.newaxis]
-# )) for muBx in separation
-# ]
-#
-# B_list5 = [np.hstack((
-#     rng.normal(loc=muBx, scale=sigBx * 5, size=nB)[:, np.newaxis],
-#     rng.normal(loc=muBy, scale=sigBy * 5, size=nB)[:, np.newaxis]
-# )) for muBx in separation
-# ]
+B_list5 = [np.hstack((
+    rng.normal(loc=2.0, scale=sigma, size=nB)[:, np.newaxis],
+    rng.normal(loc=0.0, scale=sigma, size=nB)[:, np.newaxis]
+)) for sigma in widths
+]
+
+B_list10 = [np.hstack((
+    rng.normal(loc=5.0, scale=sigma, size=nB)[:, np.newaxis],
+    rng.normal(loc=0.0, scale=sigma, size=nB)[:, np.newaxis]
+)) for sigma in widths
+]
+
+
 
 
 T_list = []
-T_list2 = []
 T_list5 = []
+T_list10 = []
 
 for i in range(len(B_list)):
     T = GoF(A, B_list[i]).Point_to_Point_DissimExp()
     T_list.append(T)
 
-    # T = GoF(A, B_list2[i]).Point_to_Point_DissimExp()
-    # T_list2.append(T)
-    #
-    # T = GoF(A, B_list5[i]).Point_to_Point_DissimExp()
-    # T_list5.append(T)
+    T = GoF(A, B_list5[i]).Point_to_Point_DissimExp()
+    T_list5.append(T)
+
+    T = GoF(A, B_list10[i]).Point_to_Point_DissimExp()
+    T_list10.append(T)
 
 
-plt.plot(separation, T_list, label = r"$\sigma = 0.2$")
-# plt.plot(separation, T_list2, label = r"$\sigma = 0.4$")
-# plt.plot(separation, T_list5, label = r"$\sigma = 1.0$")
+plt.plot(widths, T_list, label=r"$\mu_x = 1.0$")
+plt.plot(widths, T_list5, label=r"$\mu_x = 2.0$")
+plt.plot(widths, T_list10, label=r"$\mu_x = 5.0$")
 
 
-plt.xlabel("separation")
+plt.xlabel("width")
 plt.ylabel("T")
 plt.legend(fontsize=12)
 plt.grid()
